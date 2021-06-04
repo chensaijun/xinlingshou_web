@@ -1,0 +1,1262 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>Test Report</title>
+    <link href="assets/style.css" rel="stylesheet" type="text/css"/></head>
+  <body onLoad="init()">
+    <script>/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+
+function toArray(iter) {
+    if (iter === null) {
+        return null;
+    }
+    return Array.prototype.slice.call(iter);
+}
+
+function find(selector, elem) { // eslint-disable-line no-redeclare
+    if (!elem) {
+        elem = document;
+    }
+    return elem.querySelector(selector);
+}
+
+function findAll(selector, elem) {
+    if (!elem) {
+        elem = document;
+    }
+    return toArray(elem.querySelectorAll(selector));
+}
+
+function sortColumn(elem) {
+    toggleSortStates(elem);
+    const colIndex = toArray(elem.parentNode.childNodes).indexOf(elem);
+    let key;
+    if (elem.classList.contains('result')) {
+        key = keyResult;
+    } else if (elem.classList.contains('links')) {
+        key = keyLink;
+    } else {
+        key = keyAlpha;
+    }
+    sortTable(elem, key(colIndex));
+}
+
+function showAllExtras() { // eslint-disable-line no-unused-vars
+    findAll('.col-result').forEach(showExtras);
+}
+
+function hideAllExtras() { // eslint-disable-line no-unused-vars
+    findAll('.col-result').forEach(hideExtras);
+}
+
+function showExtras(colresultElem) {
+    const extras = colresultElem.parentNode.nextElementSibling;
+    const expandcollapse = colresultElem.firstElementChild;
+    extras.classList.remove('collapsed');
+    expandcollapse.classList.remove('expander');
+    expandcollapse.classList.add('collapser');
+}
+
+function hideExtras(colresultElem) {
+    const extras = colresultElem.parentNode.nextElementSibling;
+    const expandcollapse = colresultElem.firstElementChild;
+    extras.classList.add('collapsed');
+    expandcollapse.classList.remove('collapser');
+    expandcollapse.classList.add('expander');
+}
+
+function showFilters() {
+    const filterItems = document.getElementsByClassName('filter');
+    for (let i = 0; i < filterItems.length; i++)
+        filterItems[i].hidden = false;
+}
+
+function addCollapse() {
+    // Add links for show/hide all
+    const resulttable = find('table#results-table');
+    const showhideall = document.createElement('p');
+    showhideall.innerHTML = '<a href="javascript:showAllExtras()">Show all details</a> / ' +
+                            '<a href="javascript:hideAllExtras()">Hide all details</a>';
+    resulttable.parentElement.insertBefore(showhideall, resulttable);
+
+    // Add show/hide link to each result
+    findAll('.col-result').forEach(function(elem) {
+        const collapsed = getQueryParameter('collapsed') || 'Passed';
+        const extras = elem.parentNode.nextElementSibling;
+        const expandcollapse = document.createElement('span');
+        if (extras.classList.contains('collapsed')) {
+            expandcollapse.classList.add('expander');
+        } else if (collapsed.includes(elem.innerHTML)) {
+            extras.classList.add('collapsed');
+            expandcollapse.classList.add('expander');
+        } else {
+            expandcollapse.classList.add('collapser');
+        }
+        elem.appendChild(expandcollapse);
+
+        elem.addEventListener('click', function(event) {
+            if (event.currentTarget.parentNode.nextElementSibling.classList.contains('collapsed')) {
+                showExtras(event.currentTarget);
+            } else {
+                hideExtras(event.currentTarget);
+            }
+        });
+    });
+}
+
+function getQueryParameter(name) {
+    const match = RegExp('[?&]' + name + '=([^&]*)').exec(window.location.search);
+    return match && decodeURIComponent(match[1].replace(/\+/g, ' '));
+}
+
+function init () { // eslint-disable-line no-unused-vars
+    resetSortHeaders();
+
+    addCollapse();
+
+    showFilters();
+
+    sortColumn(find('.initial-sort'));
+
+    findAll('.sortable').forEach(function(elem) {
+        elem.addEventListener('click',
+            function() {
+                sortColumn(elem);
+            }, false);
+    });
+}
+
+function sortTable(clicked, keyFunc) {
+    const rows = findAll('.results-table-row');
+    const reversed = !clicked.classList.contains('asc');
+    const sortedRows = sort(rows, keyFunc, reversed);
+    /* Whole table is removed here because browsers acts much slower
+     * when appending existing elements.
+     */
+    const thead = document.getElementById('results-table-head');
+    document.getElementById('results-table').remove();
+    const parent = document.createElement('table');
+    parent.id = 'results-table';
+    parent.appendChild(thead);
+    sortedRows.forEach(function(elem) {
+        parent.appendChild(elem);
+    });
+    document.getElementsByTagName('BODY')[0].appendChild(parent);
+}
+
+function sort(items, keyFunc, reversed) {
+    const sortArray = items.map(function(item, i) {
+        return [keyFunc(item), i];
+    });
+
+    sortArray.sort(function(a, b) {
+        const keyA = a[0];
+        const keyB = b[0];
+
+        if (keyA == keyB) return 0;
+
+        if (reversed) {
+            return keyA < keyB ? 1 : -1;
+        } else {
+            return keyA > keyB ? 1 : -1;
+        }
+    });
+
+    return sortArray.map(function(item) {
+        const index = item[1];
+        return items[index];
+    });
+}
+
+function keyAlpha(colIndex) {
+    return function(elem) {
+        return elem.childNodes[1].childNodes[colIndex].firstChild.data.toLowerCase();
+    };
+}
+
+function keyLink(colIndex) {
+    return function(elem) {
+        const dataCell = elem.childNodes[1].childNodes[colIndex].firstChild;
+        return dataCell == null ? '' : dataCell.innerText.toLowerCase();
+    };
+}
+
+function keyResult(colIndex) {
+    return function(elem) {
+        const strings = ['Error', 'Failed', 'Rerun', 'XFailed', 'XPassed',
+            'Skipped', 'Passed'];
+        return strings.indexOf(elem.childNodes[1].childNodes[colIndex].firstChild.data);
+    };
+}
+
+function resetSortHeaders() {
+    findAll('.sort-icon').forEach(function(elem) {
+        elem.parentNode.removeChild(elem);
+    });
+    findAll('.sortable').forEach(function(elem) {
+        const icon = document.createElement('div');
+        icon.className = 'sort-icon';
+        icon.textContent = 'vvv';
+        elem.insertBefore(icon, elem.firstChild);
+        elem.classList.remove('desc', 'active');
+        elem.classList.add('asc', 'inactive');
+    });
+}
+
+function toggleSortStates(elem) {
+    //if active, toggle between asc and desc
+    if (elem.classList.contains('active')) {
+        elem.classList.toggle('asc');
+        elem.classList.toggle('desc');
+    }
+
+    //if inactive, reset all other functions and add ascending active
+    if (elem.classList.contains('inactive')) {
+        resetSortHeaders();
+        elem.classList.remove('inactive');
+        elem.classList.add('active');
+    }
+}
+
+function isAllRowsHidden(value) {
+    return value.hidden == false;
+}
+
+function filterTable(elem) { // eslint-disable-line no-unused-vars
+    const outcomeAtt = 'data-test-result';
+    const outcome = elem.getAttribute(outcomeAtt);
+    const classOutcome = outcome + ' results-table-row';
+    const outcomeRows = document.getElementsByClassName(classOutcome);
+
+    for(let i = 0; i < outcomeRows.length; i++){
+        outcomeRows[i].hidden = !elem.checked;
+    }
+
+    const rows = findAll('.results-table-row').filter(isAllRowsHidden);
+    const allRowsHidden = rows.length == 0 ? true : false;
+    const notFoundMessage = document.getElementById('not-found-message');
+    notFoundMessage.hidden = !allRowsHidden;
+}
+</script>
+    <h1>report.html</h1>
+    <p>Report generated on 02-Jun-2021 at 18:00:12 by <a href="https://pypi.python.org/pypi/pytest-html">pytest-html</a> v3.1.1</p>
+    <h2>Environment</h2>
+    <table id="environment">
+      <tr>
+        <td>JAVA_HOME</td>
+        <td>C:\Program Files\Java\jdk1.8.0_202</td></tr>
+      <tr>
+        <td>Packages</td>
+        <td>{"pluggy": "0.13.1", "py": "1.10.0", "pytest": "6.2.1"}</td></tr>
+      <tr>
+        <td>Platform</td>
+        <td>Windows-10-10.0.17134-SP0</td></tr>
+      <tr>
+        <td>Plugins</td>
+        <td>{"allure-pytest": "2.8.18", "html": "3.1.1", "metadata": "1.11.0", "ordering": "0.6", "rerunfailures": "9.1.1"}</td></tr>
+      <tr>
+        <td>Python</td>
+        <td>3.8.0</td></tr></table>
+    <h2>Summary</h2>
+    <p>2 tests ran in 0.28 seconds. </p>
+    <p class="filter" hidden="true">(Un)check the boxes to filter the results.</p><input checked="true" class="filter" data-test-result="passed" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="passed">2 passed</span>, <input checked="true" class="filter" data-test-result="skipped" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="skipped">0 skipped</span>, <input checked="true" class="filter" data-test-result="failed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="failed">0 failed</span>, <input checked="true" class="filter" data-test-result="error" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="error">0 errors</span>, <input checked="true" class="filter" data-test-result="xfailed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="xfailed">0 expected failures</span>, <input checked="true" class="filter" data-test-result="xpassed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="xpassed">0 unexpected passes</span>, <input checked="true" class="filter" data-test-result="rerun" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="rerun">0 rerun</span>
+    <h2>Results</h2>
+    <table id="results-table">
+      <thead id="results-table-head">
+        <tr>
+          <th class="sortable result initial-sort" col="result">Result</th>
+          <th class="sortable" col="name">Test</th>
+          <th class="sortable" col="duration">Duration</th>
+          <th class="sortable links" col="links">Links</th></tr>
+        <tr hidden="true" id="not-found-message">
+          <th colspan="4">No results found. Try to check the filters</th></tr></thead>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">super_managent/testcase_super/test_login.py::test_login</td>
+          <td class="col-duration">0.12</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stderr setup------------------------------ <br/>[2021-06-02 18:00:12,020-log_config.py]-DEBUG:{
+  &quot;success&quot;: true,
+  &quot;msg&quot;: null,
+  &quot;errorCode&quot;: null,
+  &quot;object&quot;: {
+    &quot;captchaKey&quot;: &quot;25dcfa3d-d93b-462c-9383-1d2cae12db36&quot;,
+    &quot;expire&quot;: 120,
+    &quot;content&quot;: &quot;wwp7&quot;
+  },
+  &quot;traceId&quot;: null
+}
+[2021-06-02 18:00:12,088-log_config.py]-DEBUG:{
+  &quot;success&quot;: true,
+  &quot;msg&quot;: null,
+  &quot;errorCode&quot;: null,
+  &quot;object&quot;: {
+    &quot;userVo&quot;: {
+      &quot;id&quot;: 1,
+      &quot;gmtModified&quot;: 1605430432349,
+      &quot;gmtCreated&quot;: 1599703566301,
+      &quot;creator&quot;: &quot; &quot;,
+      &quot;modifier&quot;: &quot; &quot;,
+      &quot;username&quot;: &quot;superAdmin&quot;,
+      &quot;personName&quot;: &quot; &quot;,
+      &quot;userType&quot;: 1,
+      &quot;userTypeEnum&quot;: &quot;SUPER_ADMIN&quot;,
+      &quot;status&quot;: 1,
+      &quot;userStatusEnum&quot;: &quot;NORMAL&quot;,
+      &quot;brandId&quot;: 0,
+      &quot;shopId&quot;: 0,
+      &quot;avatar&quot;: &quot; &quot;,
+      &quot;gender&quot;: 0,
+      &quot;mobile&quot;: &quot;&quot;,
+      &quot;mobileBak&quot;: &quot;&quot;,
+      &quot;appCode&quot;: &quot;vip&quot;,
+      &quot;partnerId&quot;: null,
+      &quot;deleted&quot;: false
+    },
+    &quot;token&quot;: &quot;8bcd39217e9040fea9d5718e0e0e5440&quot;,
+    &quot;brandName&quot;: null,
+    &quot;shopName&quot;: null,
+    &quot;thirdAccountInfo&quot;: null,
+    &quot;isDirectSale&quot;: null
+  },
+  &quot;traceId&quot;: null
+}
+[2021-06-02 18:00:12,090-log_config.py]-INFO:user_id:1
+[2021-06-02 18:00:12,092-log_config.py]-INFO:user_token:8bcd39217e9040fea9d5718e0e0e5440
+<br/> -------------------------------Captured log setup------------------------------- <br/>DEBUG    urllib3.connectionpool:connectionpool.py:226 Starting new HTTP connection (1): 10.4.24.93:10010
+DEBUG    urllib3.connectionpool:connectionpool.py:433 http://10.4.24.93:10010 &quot;GET /webapi/image/code?p=1 HTTP/1.1&quot; 200 None
+DEBUG    root:log_config.py:38 {
+  &quot;success&quot;: true,
+  &quot;msg&quot;: null,
+  &quot;errorCode&quot;: null,
+  &quot;object&quot;: {
+    &quot;captchaKey&quot;: &quot;25dcfa3d-d93b-462c-9383-1d2cae12db36&quot;,
+    &quot;expire&quot;: 120,
+    &quot;content&quot;: &quot;wwp7&quot;
+  },
+  &quot;traceId&quot;: null
+}
+DEBUG    urllib3.connectionpool:connectionpool.py:226 Starting new HTTP connection (1): 10.4.24.93:10010
+DEBUG    urllib3.connectionpool:connectionpool.py:433 http://10.4.24.93:10010 &quot;GET /webapi/login/superadmin?username=superAdmin&amp;password=854fbfdff02f7d347ef9936c172a5eca&amp;p=1&amp;code=wwp7 HTTP/1.1&quot; 200 None
+DEBUG    root:log_config.py:38 {
+  &quot;success&quot;: true,
+  &quot;msg&quot;: null,
+  &quot;errorCode&quot;: null,
+  &quot;object&quot;: {
+    &quot;userVo&quot;: {
+      &quot;id&quot;: 1,
+      &quot;gmtModified&quot;: 1605430432349,
+      &quot;gmtCreated&quot;: 1599703566301,
+      &quot;creator&quot;: &quot; &quot;,
+      &quot;modifier&quot;: &quot; &quot;,
+      &quot;username&quot;: &quot;superAdmin&quot;,
+      &quot;personName&quot;: &quot; &quot;,
+      &quot;userType&quot;: 1,
+      &quot;userTypeEnum&quot;: &quot;SUPER_ADMIN&quot;,
+      &quot;status&quot;: 1,
+      &quot;userStatusEnum&quot;: &quot;NORMAL&quot;,
+      &quot;brandId&quot;: 0,
+      &quot;shopId&quot;: 0,
+      &quot;avatar&quot;: &quot; &quot;,
+      &quot;gender&quot;: 0,
+      &quot;mobile&quot;: &quot;&quot;,
+      &quot;mobileBak&quot;: &quot;&quot;,
+      &quot;appCode&quot;: &quot;vip&quot;,
+      &quot;partnerId&quot;: null,
+      &quot;deleted&quot;: false
+    },
+    &quot;token&quot;: &quot;8bcd39217e9040fea9d5718e0e0e5440&quot;,
+    &quot;brandName&quot;: null,
+    &quot;shopName&quot;: null,
+    &quot;thirdAccountInfo&quot;: null,
+    &quot;isDirectSale&quot;: null
+  },
+  &quot;traceId&quot;: null
+}
+INFO     root:log_config.py:36 user_id:1
+INFO     root:log_config.py:36 user_token:8bcd39217e9040fea9d5718e0e0e5440<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">super_managent/testcase_super/test_quert_by_page.py::TestQuertByPage::test_quert_by_page</td>
+          <td class="col-duration">0.07</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stderr call------------------------------ <br/>[2021-06-02 18:00:12,171-log_config.py]-DEBUG:{
+  &quot;success&quot;: true,
+  &quot;msg&quot;: null,
+  &quot;errorCode&quot;: null,
+  &quot;object&quot;: {
+    &quot;list&quot;: [
+      {
+        &quot;id&quot;: 66,
+        &quot;gmtModified&quot;: 1621937789321,
+        &quot;gmtCreated&quot;: 1621301299279,
+        &quot;creator&quot;: &quot;&quot;,
+        &quot;modifier&quot;: &quot;&quot;,
+        &quot;brandId&quot;: &quot;158&quot;,
+        &quot;companyName&quot;: &quot;咖喱土豆&quot;,
+        &quot;companyCode&quot;: &quot;1321415415&quot;,
+        &quot;companyLicense&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/b8817243-99eb-4815-bfd2-76c2b0ecf207_%E5%BE%AE%E4%BF%A1%E5%9B%BE%E7%89%87_20201203103712.jpg&quot;,
+        &quot;companyLegalName&quot;: &quot;土豆&quot;,
+        &quot;companyIdCard&quot;: &quot;1233333&quot;,
+        &quot;companyIdPhotoFront&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/7828914b-7ef4-42bf-af67-b886a17952db_%E5%BE%AE%E4%BF%A1%E5%9B%BE%E7%89%87_20201203103712.jpg&quot;,
+        &quot;companyIdPhotoBack&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/6faaf90e-37b4-459f-8cfd-5fa62adaca18_%E5%BE%AE%E4%BF%A1%E5%9B%BE%E7%89%87_20201203103712.jpg&quot;,
+        &quot;status&quot;: 1,
+        &quot;brandRegCertificate&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/285a0b59-9708-4580-abb8-5d7240c104e5_%E5%BE%AE%E4%BF%A1%E5%9B%BE%E7%89%87_20201203103712.jpg&quot;,
+        &quot;commissionRate&quot;: 30.0,
+        &quot;brandName&quot;: &quot;已豆之名&quot;,
+        &quot;brandLogo&quot;: &quot;&quot;,
+        &quot;manager&quot;: null,
+        &quot;phone&quot;: null,
+        &quot;brandPicUrl&quot;: null,
+        &quot;brandDetail&quot;: null,
+        &quot;username&quot;: &quot;15700000004&quot;,
+        &quot;shopNum&quot;: 2,
+        &quot;userId&quot;: &quot;1ji&quot;,
+        &quot;deleted&quot;: null
+      },
+      {
+        &quot;id&quot;: 65,
+        &quot;gmtModified&quot;: 1621993731516,
+        &quot;gmtCreated&quot;: 1621233048649,
+        &quot;creator&quot;: &quot;&quot;,
+        &quot;modifier&quot;: &quot;&quot;,
+        &quot;brandId&quot;: &quot;156&quot;,
+        &quot;companyName&quot;: &quot;土豆&quot;,
+        &quot;companyCode&quot;: &quot;1321415415&quot;,
+        &quot;companyLicense&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/19a3e3ba-8d61-4e35-8cab-f7affeb17752_%E5%BE%AE%E4%BF%A1%E5%9B%BE%E7%89%87_20210223161845.jpg&quot;,
+        &quot;companyLegalName&quot;: &quot;土豆&quot;,
+        &quot;companyIdCard&quot;: &quot;1233333&quot;,
+        &quot;companyIdPhotoFront&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/6939a7ff-1596-40d5-843f-20905c1a6f0f_%E5%BE%AE%E4%BF%A1%E5%9B%BE%E7%89%87_20210223161845.jpg&quot;,
+        &quot;companyIdPhotoBack&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/e6d0015d-497f-40aa-b5a3-dd6dcdc7868a_%E5%BE%AE%E4%BF%A1%E5%9B%BE%E7%89%87_20210223161845.jpg&quot;,
+        &quot;status&quot;: 1,
+        &quot;brandRegCertificate&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/b16ec24f-947c-4077-8103-08da1ff606a8_%E5%BE%AE%E4%BF%A1%E5%9B%BE%E7%89%87_20210223161845.jpg&quot;,
+        &quot;commissionRate&quot;: 30.0,
+        &quot;brandName&quot;: &quot;土豆&quot;,
+        &quot;brandLogo&quot;: &quot;&quot;,
+        &quot;manager&quot;: null,
+        &quot;phone&quot;: null,
+        &quot;brandPicUrl&quot;: null,
+        &quot;brandDetail&quot;: null,
+        &quot;username&quot;: &quot;15700000003&quot;,
+        &quot;shopNum&quot;: 1,
+        &quot;userId&quot;: &quot;1jc&quot;,
+        &quot;deleted&quot;: null
+      },
+      {
+        &quot;id&quot;: 64,
+        &quot;gmtModified&quot;: 1621324552231,
+        &quot;gmtCreated&quot;: 1621232519532,
+        &quot;creator&quot;: &quot;&quot;,
+        &quot;modifier&quot;: &quot;&quot;,
+        &quot;brandId&quot;: &quot;154&quot;,
+        &quot;companyName&quot;: &quot;gdm验证直营店&quot;,
+        &quot;companyCode&quot;: &quot;1321415415&quot;,
+        &quot;companyLicense&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/0bd79017-1bb9-4513-ab2b-e3c7ce2eeda3_%E5%BE%AE%E4%BF%A1%E5%9B%BE%E7%89%87_20210223161845.jpg&quot;,
+        &quot;companyLegalName&quot;: &quot;阿豆&quot;,
+        &quot;companyIdCard&quot;: &quot;1233333&quot;,
+        &quot;companyIdPhotoFront&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/1b2634a7-2c1f-4e3b-a2d8-d2b018ea5c8e_%E5%BE%AE%E4%BF%A1%E5%9B%BE%E7%89%87_20210223161845.jpg&quot;,
+        &quot;companyIdPhotoBack&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/56ab0ce1-1f36-4499-80c2-391cbd7fd3d9_%E5%BE%AE%E4%BF%A1%E5%9B%BE%E7%89%87_20210223161845.jpg&quot;,
+        &quot;status&quot;: 1,
+        &quot;brandRegCertificate&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/049eaa64-b4d3-4fe9-b59d-2bbe3d75fb1d_%E5%BE%AE%E4%BF%A1%E5%9B%BE%E7%89%87_20210223161845.jpg&quot;,
+        &quot;commissionRate&quot;: 10.0,
+        &quot;brandName&quot;: &quot;已豆之名&quot;,
+        &quot;brandLogo&quot;: &quot;&quot;,
+        &quot;manager&quot;: null,
+        &quot;phone&quot;: null,
+        &quot;brandPicUrl&quot;: null,
+        &quot;brandDetail&quot;: null,
+        &quot;username&quot;: &quot;guoguoguo&quot;,
+        &quot;shopNum&quot;: 2,
+        &quot;userId&quot;: &quot;1j6&quot;,
+        &quot;deleted&quot;: null
+      },
+      {
+        &quot;id&quot;: 63,
+        &quot;gmtModified&quot;: 1618996532690,
+        &quot;gmtCreated&quot;: 1618996532690,
+        &quot;creator&quot;: &quot;&quot;,
+        &quot;modifier&quot;: &quot;&quot;,
+        &quot;brandId&quot;: &quot;152&quot;,
+        &quot;companyName&quot;: &quot;aaaa4&quot;,
+        &quot;companyCode&quot;: &quot;123456&quot;,
+        &quot;companyLicense&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/e10d3f09-c908-4eb2-91a0-91494b7b0b25_1.jpg&quot;,
+        &quot;companyLegalName&quot;: &quot;aaaa&quot;,
+        &quot;companyIdCard&quot;: &quot;53010219200508011X&quot;,
+        &quot;companyIdPhotoFront&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/068b0075-782f-4285-ac08-b938d5fb2689_1.jpg&quot;,
+        &quot;companyIdPhotoBack&quot;: &quot;&quot;,
+        &quot;status&quot;: 1,
+        &quot;brandRegCertificate&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/74abc8e2-e54b-4766-9e25-1beb8b01cde3_1.jpg&quot;,
+        &quot;commissionRate&quot;: 0.0,
+        &quot;brandName&quot;: &quot;test1&quot;,
+        &quot;brandLogo&quot;: &quot;&quot;,
+        &quot;manager&quot;: null,
+        &quot;phone&quot;: null,
+        &quot;brandPicUrl&quot;: null,
+        &quot;brandDetail&quot;: null,
+        &quot;username&quot;: &quot;test7&quot;,
+        &quot;shopNum&quot;: 0,
+        &quot;userId&quot;: &quot;1j0&quot;,
+        &quot;deleted&quot;: null
+      },
+      {
+        &quot;id&quot;: 62,
+        &quot;gmtModified&quot;: 1618996280731,
+        &quot;gmtCreated&quot;: 1618996280731,
+        &quot;creator&quot;: &quot;&quot;,
+        &quot;modifier&quot;: &quot;&quot;,
+        &quot;brandId&quot;: &quot;150&quot;,
+        &quot;companyName&quot;: &quot;aaaa4&quot;,
+        &quot;companyCode&quot;: &quot;123456&quot;,
+        &quot;companyLicense&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/79363803-5c8b-4d3a-8cd0-91213dabcf84_1.jpg&quot;,
+        &quot;companyLegalName&quot;: &quot;aaaa&quot;,
+        &quot;companyIdCard&quot;: &quot;53010219200508011X&quot;,
+        &quot;companyIdPhotoFront&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/1b8f3969-37c3-4c1d-b2b6-82be105590c7_1.jpg&quot;,
+        &quot;companyIdPhotoBack&quot;: &quot;&quot;,
+        &quot;status&quot;: 1,
+        &quot;brandRegCertificate&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/4479d561-601c-45f4-bf43-e75d5385472f_1.jpg&quot;,
+        &quot;commissionRate&quot;: 0.0,
+        &quot;brandName&quot;: &quot;test1&quot;,
+        &quot;brandLogo&quot;: &quot;&quot;,
+        &quot;manager&quot;: null,
+        &quot;phone&quot;: null,
+        &quot;brandPicUrl&quot;: null,
+        &quot;brandDetail&quot;: null,
+        &quot;username&quot;: &quot;test6&quot;,
+        &quot;shopNum&quot;: 1,
+        &quot;userId&quot;: &quot;1iy&quot;,
+        &quot;deleted&quot;: null
+      },
+      {
+        &quot;id&quot;: 61,
+        &quot;gmtModified&quot;: 1618971807517,
+        &quot;gmtCreated&quot;: 1618971807517,
+        &quot;creator&quot;: &quot;&quot;,
+        &quot;modifier&quot;: &quot;&quot;,
+        &quot;brandId&quot;: &quot;14y&quot;,
+        &quot;companyName&quot;: &quot;aaaa4&quot;,
+        &quot;companyCode&quot;: &quot;123456&quot;,
+        &quot;companyLicense&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/af317fca-922e-4592-a357-2c8ddd953688_1.jpg&quot;,
+        &quot;companyLegalName&quot;: &quot;aaaa&quot;,
+        &quot;companyIdCard&quot;: &quot;53010219200508011X&quot;,
+        &quot;companyIdPhotoFront&quot;: &quot;&quot;,
+        &quot;companyIdPhotoBack&quot;: &quot;&quot;,
+        &quot;status&quot;: 1,
+        &quot;brandRegCertificate&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/46bef5da-86dd-423e-9068-d09031f215f4_1.jpg&quot;,
+        &quot;commissionRate&quot;: 0.0,
+        &quot;brandName&quot;: &quot;test1&quot;,
+        &quot;brandLogo&quot;: &quot;&quot;,
+        &quot;manager&quot;: null,
+        &quot;phone&quot;: null,
+        &quot;brandPicUrl&quot;: null,
+        &quot;brandDetail&quot;: null,
+        &quot;username&quot;: &quot;test5&quot;,
+        &quot;shopNum&quot;: 0,
+        &quot;userId&quot;: &quot;1iw&quot;,
+        &quot;deleted&quot;: null
+      },
+      {
+        &quot;id&quot;: 60,
+        &quot;gmtModified&quot;: 1618970122374,
+        &quot;gmtCreated&quot;: 1618970122374,
+        &quot;creator&quot;: &quot;&quot;,
+        &quot;modifier&quot;: &quot;&quot;,
+        &quot;brandId&quot;: &quot;14w&quot;,
+        &quot;companyName&quot;: &quot;aaaa4&quot;,
+        &quot;companyCode&quot;: &quot;123456&quot;,
+        &quot;companyLicense&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/6f9c5fe9-2fef-4ddb-8469-aa4b4a3fc263_1.jpg&quot;,
+        &quot;companyLegalName&quot;: &quot;aaaa&quot;,
+        &quot;companyIdCard&quot;: &quot;53010219200508011X&quot;,
+        &quot;companyIdPhotoFront&quot;: &quot;&quot;,
+        &quot;companyIdPhotoBack&quot;: &quot;&quot;,
+        &quot;status&quot;: 1,
+        &quot;brandRegCertificate&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/f992f600-934d-44a3-9174-8da9c14727c8_1.jpg&quot;,
+        &quot;commissionRate&quot;: 0.0,
+        &quot;brandName&quot;: &quot;test1&quot;,
+        &quot;brandLogo&quot;: &quot;&quot;,
+        &quot;manager&quot;: null,
+        &quot;phone&quot;: null,
+        &quot;brandPicUrl&quot;: null,
+        &quot;brandDetail&quot;: null,
+        &quot;username&quot;: &quot;test4&quot;,
+        &quot;shopNum&quot;: 0,
+        &quot;userId&quot;: &quot;1iu&quot;,
+        &quot;deleted&quot;: null
+      },
+      {
+        &quot;id&quot;: 59,
+        &quot;gmtModified&quot;: 1618478011763,
+        &quot;gmtCreated&quot;: 1618478011763,
+        &quot;creator&quot;: &quot;&quot;,
+        &quot;modifier&quot;: &quot;&quot;,
+        &quot;brandId&quot;: &quot;14u&quot;,
+        &quot;companyName&quot;: &quot;aaaa2&quot;,
+        &quot;companyCode&quot;: &quot;123456&quot;,
+        &quot;companyLicense&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/778a9dff-8630-4a40-a39a-9d80a8501e72_1.jpg&quot;,
+        &quot;companyLegalName&quot;: &quot;aaaa&quot;,
+        &quot;companyIdCard&quot;: &quot;53010219200508011X&quot;,
+        &quot;companyIdPhotoFront&quot;: &quot;&quot;,
+        &quot;companyIdPhotoBack&quot;: &quot;&quot;,
+        &quot;status&quot;: 1,
+        &quot;brandRegCertificate&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/24e72277-7412-4650-9577-a3ec591e75e2_1.jpg&quot;,
+        &quot;commissionRate&quot;: 0.0,
+        &quot;brandName&quot;: &quot;test1&quot;,
+        &quot;brandLogo&quot;: &quot;&quot;,
+        &quot;manager&quot;: null,
+        &quot;phone&quot;: null,
+        &quot;brandPicUrl&quot;: null,
+        &quot;brandDetail&quot;: null,
+        &quot;username&quot;: &quot;test3&quot;,
+        &quot;shopNum&quot;: 0,
+        &quot;userId&quot;: &quot;1is&quot;,
+        &quot;deleted&quot;: null
+      },
+      {
+        &quot;id&quot;: 58,
+        &quot;gmtModified&quot;: 1618477821766,
+        &quot;gmtCreated&quot;: 1618477821766,
+        &quot;creator&quot;: &quot;&quot;,
+        &quot;modifier&quot;: &quot;&quot;,
+        &quot;brandId&quot;: &quot;14s&quot;,
+        &quot;companyName&quot;: &quot;aaaa1&quot;,
+        &quot;companyCode&quot;: &quot;123456&quot;,
+        &quot;companyLicense&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/88966896-13f5-4b6f-bacb-905351c6e8f9_1.jpg&quot;,
+        &quot;companyLegalName&quot;: &quot;aaaa&quot;,
+        &quot;companyIdCard&quot;: &quot;53010219200508011X&quot;,
+        &quot;companyIdPhotoFront&quot;: &quot;&quot;,
+        &quot;companyIdPhotoBack&quot;: &quot;&quot;,
+        &quot;status&quot;: 1,
+        &quot;brandRegCertificate&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/ba600c8d-ee3c-4d5e-a30c-8d05652afdf7_1.jpg&quot;,
+        &quot;commissionRate&quot;: 0.0,
+        &quot;brandName&quot;: &quot;test1&quot;,
+        &quot;brandLogo&quot;: &quot;&quot;,
+        &quot;manager&quot;: null,
+        &quot;phone&quot;: null,
+        &quot;brandPicUrl&quot;: null,
+        &quot;brandDetail&quot;: null,
+        &quot;username&quot;: &quot;test2&quot;,
+        &quot;shopNum&quot;: 0,
+        &quot;userId&quot;: &quot;1iq&quot;,
+        &quot;deleted&quot;: null
+      },
+      {
+        &quot;id&quot;: 57,
+        &quot;gmtModified&quot;: 1618476238468,
+        &quot;gmtCreated&quot;: 1618476238468,
+        &quot;creator&quot;: &quot;&quot;,
+        &quot;modifier&quot;: &quot;&quot;,
+        &quot;brandId&quot;: &quot;14q&quot;,
+        &quot;companyName&quot;: &quot;aaaaa&quot;,
+        &quot;companyCode&quot;: &quot;123456&quot;,
+        &quot;companyLicense&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/27dcdb80-b869-48a1-a935-d4d0259e0915_1.jpg&quot;,
+        &quot;companyLegalName&quot;: &quot;aaaa&quot;,
+        &quot;companyIdCard&quot;: &quot;53010219200508011X&quot;,
+        &quot;companyIdPhotoFront&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/c6493140-1985-4986-acc1-2f29a12c79f6_1.jpg&quot;,
+        &quot;companyIdPhotoBack&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/3b91ae81-c3cb-4081-b5ba-4301ffd7d757_1.jpg&quot;,
+        &quot;status&quot;: 1,
+        &quot;brandRegCertificate&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/766045ff-6bea-44b1-95b4-903a3599a64e_1.jpg&quot;,
+        &quot;commissionRate&quot;: 0.0,
+        &quot;brandName&quot;: &quot;test1&quot;,
+        &quot;brandLogo&quot;: &quot;&quot;,
+        &quot;manager&quot;: null,
+        &quot;phone&quot;: null,
+        &quot;brandPicUrl&quot;: null,
+        &quot;brandDetail&quot;: null,
+        &quot;username&quot;: &quot;test1&quot;,
+        &quot;shopNum&quot;: 0,
+        &quot;userId&quot;: &quot;1io&quot;,
+        &quot;deleted&quot;: null
+      },
+      {
+        &quot;id&quot;: 56,
+        &quot;gmtModified&quot;: 1618294796117,
+        &quot;gmtCreated&quot;: 1618293726380,
+        &quot;creator&quot;: &quot;&quot;,
+        &quot;modifier&quot;: &quot;&quot;,
+        &quot;brandId&quot;: &quot;14o&quot;,
+        &quot;companyName&quot;: &quot;ev g&quot;,
+        &quot;companyCode&quot;: &quot;111&quot;,
+        &quot;companyLicense&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/89a4d29b-b931-4bbf-8902-fe74ade0d93f_%E5%BE%AE%E4%BF%A1%E5%9B%BE%E7%89%87_20210316133846.jpg&quot;,
+        &quot;companyLegalName&quot;: &quot;frff&quot;,
+        &quot;companyIdCard&quot;: &quot;FFFFFF&quot;,
+        &quot;companyIdPhotoFront&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/7e37582e-fe3f-4933-a57a-f73a5a8b54b4_%E5%BE%AE%E4%BF%A1%E5%9B%BE%E7%89%87_20210316133846.jpg&quot;,
+        &quot;companyIdPhotoBack&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/604ce689-688d-4027-8aef-32b0de83d32e_%E5%BE%AE%E4%BF%A1%E5%9B%BE%E7%89%87_20210316133846.jpg&quot;,
+        &quot;status&quot;: 1,
+        &quot;brandRegCertificate&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/c8053b6b-450e-4a72-b740-3e971f0da3f3_%E5%BE%AE%E4%BF%A1%E5%9B%BE%E7%89%87_20210316133846.jpg&quot;,
+        &quot;commissionRate&quot;: 0.0,
+        &quot;brandName&quot;: &quot;清泉连锁&quot;,
+        &quot;brandLogo&quot;: &quot;&quot;,
+        &quot;manager&quot;: null,
+        &quot;phone&quot;: null,
+        &quot;brandPicUrl&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/c1351578-33d3-4eed-874b-20fd97bc5c8c_%E5%BE%AE%E4%BF%A1%E5%9B%BE%E7%89%87_20210407175058.png?x-oss-process=image/resize,w_100,limit_0&quot;,
+        &quot;brandDetail&quot;: &quot;浙江清泉连锁有限公司于2020年04月01日成立。法定代表人邸杰，公司经营范围包括：销售食品；技术开发、技术服务；货物进出口、代理进出口；销售食用农产品等。&quot;,
+        &quot;username&quot;: &quot;778899&quot;,
+        &quot;shopNum&quot;: 2,
+        &quot;userId&quot;: &quot;1ig&quot;,
+        &quot;deleted&quot;: null
+      },
+      {
+        &quot;id&quot;: 55,
+        &quot;gmtModified&quot;: 1618281723722,
+        &quot;gmtCreated&quot;: 1618281723722,
+        &quot;creator&quot;: &quot;&quot;,
+        &quot;modifier&quot;: &quot;&quot;,
+        &quot;brandId&quot;: &quot;14m&quot;,
+        &quot;companyName&quot;: &quot;米罗&quot;,
+        &quot;companyCode&quot;: &quot;IIRIRFIRF9IRF930IR&quot;,
+        &quot;companyLicense&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/d842ab85-995c-4b72-ab8d-6e072fb3d065_touming.png&quot;,
+        &quot;companyLegalName&quot;: &quot;jfevgj&quot;,
+        &quot;companyIdCard&quot;: &quot;150430199812221321&quot;,
+        &quot;companyIdPhotoFront&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/0a5a3dc1-5465-4338-9d75-24a0663b512b_touming.png&quot;,
+        &quot;companyIdPhotoBack&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/5f36466d-08e6-489b-b188-37c9e7d33f3c_touming.png&quot;,
+        &quot;status&quot;: 1,
+        &quot;brandRegCertificate&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/0dba13f4-1279-4cb3-90dc-205d074572d3_touming.png&quot;,
+        &quot;commissionRate&quot;: 0.0,
+        &quot;brandName&quot;: &quot;清泉出山&quot;,
+        &quot;brandLogo&quot;: &quot;&quot;,
+        &quot;manager&quot;: null,
+        &quot;phone&quot;: null,
+        &quot;brandPicUrl&quot;: null,
+        &quot;brandDetail&quot;: null,
+        &quot;username&quot;: &quot;112233445566&quot;,
+        &quot;shopNum&quot;: 0,
+        &quot;userId&quot;: &quot;1ie&quot;,
+        &quot;deleted&quot;: null
+      },
+      {
+        &quot;id&quot;: 54,
+        &quot;gmtModified&quot;: 1618192499864,
+        &quot;gmtCreated&quot;: 1618192499864,
+        &quot;creator&quot;: &quot;&quot;,
+        &quot;modifier&quot;: &quot;&quot;,
+        &quot;brandId&quot;: &quot;14k&quot;,
+        &quot;companyName&quot;: &quot;cjbqa001品牌商&quot;,
+        &quot;companyCode&quot;: &quot;CJBQA001&quot;,
+        &quot;companyLicense&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/e95064ec-d3d1-4c6c-8fa9-fab13c5035fa_2018135.jpg&quot;,
+        &quot;companyLegalName&quot;: &quot;cjbqa&quot;,
+        &quot;companyIdCard&quot;: &quot;CJBQA000000001&quot;,
+        &quot;companyIdPhotoFront&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/20f143ad-42bf-4dc8-b8b6-f6bcd9996f0e_322461.jpg&quot;,
+        &quot;companyIdPhotoBack&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/f739cfba-7800-4d2d-a313-b15bcc3538ff_2008527.jpg&quot;,
+        &quot;status&quot;: 1,
+        &quot;brandRegCertificate&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/afb228c1-055a-44ce-8542-fec29b9d3302_Kubernetes.png&quot;,
+        &quot;commissionRate&quot;: 0.0,
+        &quot;brandName&quot;: &quot;cjbqa品牌商-VIP&quot;,
+        &quot;brandLogo&quot;: &quot;&quot;,
+        &quot;manager&quot;: null,
+        &quot;phone&quot;: null,
+        &quot;brandPicUrl&quot;: null,
+        &quot;brandDetail&quot;: null,
+        &quot;username&quot;: &quot;cjbqa001&quot;,
+        &quot;shopNum&quot;: 1,
+        &quot;userId&quot;: &quot;1ia&quot;,
+        &quot;deleted&quot;: null
+      },
+      {
+        &quot;id&quot;: 53,
+        &quot;gmtModified&quot;: 1617852256709,
+        &quot;gmtCreated&quot;: 1617852256709,
+        &quot;creator&quot;: &quot;&quot;,
+        &quot;modifier&quot;: &quot;&quot;,
+        &quot;brandId&quot;: &quot;14i&quot;,
+        &quot;companyName&quot;: &quot;我&quot;,
+        &quot;companyCode&quot;: &quot;1111111111&quot;,
+        &quot;companyLicense&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/b2c9c004-f06d-4b78-973d-5d972b353974_2020-10-20_175547.png&quot;,
+        &quot;companyLegalName&quot;: &quot;朱琳&quot;,
+        &quot;companyIdCard&quot;: &quot;222222222222222222&quot;,
+        &quot;companyIdPhotoFront&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/8464eae5-b18c-4dee-a078-5f6d55c73ab6_2020-10-20_175547.png&quot;,
+        &quot;companyIdPhotoBack&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/89ced355-208d-4f14-8614-5a25ccdf4c97_2020-10-20_175547.png&quot;,
+        &quot;status&quot;: 1,
+        &quot;brandRegCertificate&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/38969b2d-62c3-4130-be10-dfa2bdc64e05_2020-10-20_175547.png&quot;,
+        &quot;commissionRate&quot;: 0.0,
+        &quot;brandName&quot;: &quot;顶顶顶顶顶&quot;,
+        &quot;brandLogo&quot;: &quot;&quot;,
+        &quot;manager&quot;: null,
+        &quot;phone&quot;: null,
+        &quot;brandPicUrl&quot;: null,
+        &quot;brandDetail&quot;: null,
+        &quot;username&quot;: &quot;zhulin03&quot;,
+        &quot;shopNum&quot;: 3,
+        &quot;userId&quot;: &quot;1hi&quot;,
+        &quot;deleted&quot;: null
+      },
+      {
+        &quot;id&quot;: 52,
+        &quot;gmtModified&quot;: 1621389575489,
+        &quot;gmtCreated&quot;: 1617777625481,
+        &quot;creator&quot;: &quot;&quot;,
+        &quot;modifier&quot;: &quot;&quot;,
+        &quot;brandId&quot;: &quot;14g&quot;,
+        &quot;companyName&quot;: &quot;无人生还&quot;,
+        &quot;companyCode&quot;: &quot;333333333333&quot;,
+        &quot;companyLicense&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/9859695e-53dd-4299-ae55-59626c18b676_%E6%88%AA%E5%B1%8F2021-02-10%20%E4%B8%8B%E5%8D%888.17.54.png&quot;,
+        &quot;companyLegalName&quot;: &quot;七七&quot;,
+        &quot;companyIdCard&quot;: &quot;777777777777777777&quot;,
+        &quot;companyIdPhotoFront&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/00873d6b-2f68-4457-a968-9858709c5adf_Screenshot_2021-04-06-17-54-53-29_e7b888fccdf5177.jpg&quot;,
+        &quot;companyIdPhotoBack&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/30e95ca3-c91e-4f83-b1f7-6317e806b167_Screenshot_2021-04-06-17-54-53-29_e7b888fccdf5177.jpg&quot;,
+        &quot;status&quot;: 1,
+        &quot;brandRegCertificate&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/f1b83297-5d7a-412e-a468-a059c02982e5_Screenshot_2021-04-06-17-37-51-79_e7b888fccdf5177.jpg&quot;,
+        &quot;commissionRate&quot;: 10.0,
+        &quot;brandName&quot;: &quot;无人生还007&quot;,
+        &quot;brandLogo&quot;: &quot;&quot;,
+        &quot;manager&quot;: null,
+        &quot;phone&quot;: null,
+        &quot;brandPicUrl&quot;: null,
+        &quot;brandDetail&quot;: null,
+        &quot;username&quot;: &quot;AAAAA&quot;,
+        &quot;shopNum&quot;: 4,
+        &quot;userId&quot;: &quot;1h4&quot;,
+        &quot;deleted&quot;: null
+      }
+    ],
+    &quot;page&quot;: 0,
+    &quot;pageCount&quot;: 0,
+    &quot;pageSize&quot;: 0,
+    &quot;total&quot;: 64
+  },
+  &quot;traceId&quot;: null
+}
+<br/> -------------------------------Captured log call-------------------------------- <br/>DEBUG    urllib3.connectionpool:connectionpool.py:226 Starting new HTTP connection (1): 10.4.24.93:10010
+DEBUG    urllib3.connectionpool:connectionpool.py:433 http://10.4.24.93:10010 &quot;GET /webapi/cloud/queryByPage?offset=0&amp;pageSize=15 HTTP/1.1&quot; 200 None
+DEBUG    root:log_config.py:38 {
+  &quot;success&quot;: true,
+  &quot;msg&quot;: null,
+  &quot;errorCode&quot;: null,
+  &quot;object&quot;: {
+    &quot;list&quot;: [
+      {
+        &quot;id&quot;: 66,
+        &quot;gmtModified&quot;: 1621937789321,
+        &quot;gmtCreated&quot;: 1621301299279,
+        &quot;creator&quot;: &quot;&quot;,
+        &quot;modifier&quot;: &quot;&quot;,
+        &quot;brandId&quot;: &quot;158&quot;,
+        &quot;companyName&quot;: &quot;咖喱土豆&quot;,
+        &quot;companyCode&quot;: &quot;1321415415&quot;,
+        &quot;companyLicense&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/b8817243-99eb-4815-bfd2-76c2b0ecf207_%E5%BE%AE%E4%BF%A1%E5%9B%BE%E7%89%87_20201203103712.jpg&quot;,
+        &quot;companyLegalName&quot;: &quot;土豆&quot;,
+        &quot;companyIdCard&quot;: &quot;1233333&quot;,
+        &quot;companyIdPhotoFront&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/7828914b-7ef4-42bf-af67-b886a17952db_%E5%BE%AE%E4%BF%A1%E5%9B%BE%E7%89%87_20201203103712.jpg&quot;,
+        &quot;companyIdPhotoBack&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/6faaf90e-37b4-459f-8cfd-5fa62adaca18_%E5%BE%AE%E4%BF%A1%E5%9B%BE%E7%89%87_20201203103712.jpg&quot;,
+        &quot;status&quot;: 1,
+        &quot;brandRegCertificate&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/285a0b59-9708-4580-abb8-5d7240c104e5_%E5%BE%AE%E4%BF%A1%E5%9B%BE%E7%89%87_20201203103712.jpg&quot;,
+        &quot;commissionRate&quot;: 30.0,
+        &quot;brandName&quot;: &quot;已豆之名&quot;,
+        &quot;brandLogo&quot;: &quot;&quot;,
+        &quot;manager&quot;: null,
+        &quot;phone&quot;: null,
+        &quot;brandPicUrl&quot;: null,
+        &quot;brandDetail&quot;: null,
+        &quot;username&quot;: &quot;15700000004&quot;,
+        &quot;shopNum&quot;: 2,
+        &quot;userId&quot;: &quot;1ji&quot;,
+        &quot;deleted&quot;: null
+      },
+      {
+        &quot;id&quot;: 65,
+        &quot;gmtModified&quot;: 1621993731516,
+        &quot;gmtCreated&quot;: 1621233048649,
+        &quot;creator&quot;: &quot;&quot;,
+        &quot;modifier&quot;: &quot;&quot;,
+        &quot;brandId&quot;: &quot;156&quot;,
+        &quot;companyName&quot;: &quot;土豆&quot;,
+        &quot;companyCode&quot;: &quot;1321415415&quot;,
+        &quot;companyLicense&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/19a3e3ba-8d61-4e35-8cab-f7affeb17752_%E5%BE%AE%E4%BF%A1%E5%9B%BE%E7%89%87_20210223161845.jpg&quot;,
+        &quot;companyLegalName&quot;: &quot;土豆&quot;,
+        &quot;companyIdCard&quot;: &quot;1233333&quot;,
+        &quot;companyIdPhotoFront&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/6939a7ff-1596-40d5-843f-20905c1a6f0f_%E5%BE%AE%E4%BF%A1%E5%9B%BE%E7%89%87_20210223161845.jpg&quot;,
+        &quot;companyIdPhotoBack&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/e6d0015d-497f-40aa-b5a3-dd6dcdc7868a_%E5%BE%AE%E4%BF%A1%E5%9B%BE%E7%89%87_20210223161845.jpg&quot;,
+        &quot;status&quot;: 1,
+        &quot;brandRegCertificate&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/b16ec24f-947c-4077-8103-08da1ff606a8_%E5%BE%AE%E4%BF%A1%E5%9B%BE%E7%89%87_20210223161845.jpg&quot;,
+        &quot;commissionRate&quot;: 30.0,
+        &quot;brandName&quot;: &quot;土豆&quot;,
+        &quot;brandLogo&quot;: &quot;&quot;,
+        &quot;manager&quot;: null,
+        &quot;phone&quot;: null,
+        &quot;brandPicUrl&quot;: null,
+        &quot;brandDetail&quot;: null,
+        &quot;username&quot;: &quot;15700000003&quot;,
+        &quot;shopNum&quot;: 1,
+        &quot;userId&quot;: &quot;1jc&quot;,
+        &quot;deleted&quot;: null
+      },
+      {
+        &quot;id&quot;: 64,
+        &quot;gmtModified&quot;: 1621324552231,
+        &quot;gmtCreated&quot;: 1621232519532,
+        &quot;creator&quot;: &quot;&quot;,
+        &quot;modifier&quot;: &quot;&quot;,
+        &quot;brandId&quot;: &quot;154&quot;,
+        &quot;companyName&quot;: &quot;gdm验证直营店&quot;,
+        &quot;companyCode&quot;: &quot;1321415415&quot;,
+        &quot;companyLicense&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/0bd79017-1bb9-4513-ab2b-e3c7ce2eeda3_%E5%BE%AE%E4%BF%A1%E5%9B%BE%E7%89%87_20210223161845.jpg&quot;,
+        &quot;companyLegalName&quot;: &quot;阿豆&quot;,
+        &quot;companyIdCard&quot;: &quot;1233333&quot;,
+        &quot;companyIdPhotoFront&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/1b2634a7-2c1f-4e3b-a2d8-d2b018ea5c8e_%E5%BE%AE%E4%BF%A1%E5%9B%BE%E7%89%87_20210223161845.jpg&quot;,
+        &quot;companyIdPhotoBack&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/56ab0ce1-1f36-4499-80c2-391cbd7fd3d9_%E5%BE%AE%E4%BF%A1%E5%9B%BE%E7%89%87_20210223161845.jpg&quot;,
+        &quot;status&quot;: 1,
+        &quot;brandRegCertificate&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/049eaa64-b4d3-4fe9-b59d-2bbe3d75fb1d_%E5%BE%AE%E4%BF%A1%E5%9B%BE%E7%89%87_20210223161845.jpg&quot;,
+        &quot;commissionRate&quot;: 10.0,
+        &quot;brandName&quot;: &quot;已豆之名&quot;,
+        &quot;brandLogo&quot;: &quot;&quot;,
+        &quot;manager&quot;: null,
+        &quot;phone&quot;: null,
+        &quot;brandPicUrl&quot;: null,
+        &quot;brandDetail&quot;: null,
+        &quot;username&quot;: &quot;guoguoguo&quot;,
+        &quot;shopNum&quot;: 2,
+        &quot;userId&quot;: &quot;1j6&quot;,
+        &quot;deleted&quot;: null
+      },
+      {
+        &quot;id&quot;: 63,
+        &quot;gmtModified&quot;: 1618996532690,
+        &quot;gmtCreated&quot;: 1618996532690,
+        &quot;creator&quot;: &quot;&quot;,
+        &quot;modifier&quot;: &quot;&quot;,
+        &quot;brandId&quot;: &quot;152&quot;,
+        &quot;companyName&quot;: &quot;aaaa4&quot;,
+        &quot;companyCode&quot;: &quot;123456&quot;,
+        &quot;companyLicense&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/e10d3f09-c908-4eb2-91a0-91494b7b0b25_1.jpg&quot;,
+        &quot;companyLegalName&quot;: &quot;aaaa&quot;,
+        &quot;companyIdCard&quot;: &quot;53010219200508011X&quot;,
+        &quot;companyIdPhotoFront&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/068b0075-782f-4285-ac08-b938d5fb2689_1.jpg&quot;,
+        &quot;companyIdPhotoBack&quot;: &quot;&quot;,
+        &quot;status&quot;: 1,
+        &quot;brandRegCertificate&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/74abc8e2-e54b-4766-9e25-1beb8b01cde3_1.jpg&quot;,
+        &quot;commissionRate&quot;: 0.0,
+        &quot;brandName&quot;: &quot;test1&quot;,
+        &quot;brandLogo&quot;: &quot;&quot;,
+        &quot;manager&quot;: null,
+        &quot;phone&quot;: null,
+        &quot;brandPicUrl&quot;: null,
+        &quot;brandDetail&quot;: null,
+        &quot;username&quot;: &quot;test7&quot;,
+        &quot;shopNum&quot;: 0,
+        &quot;userId&quot;: &quot;1j0&quot;,
+        &quot;deleted&quot;: null
+      },
+      {
+        &quot;id&quot;: 62,
+        &quot;gmtModified&quot;: 1618996280731,
+        &quot;gmtCreated&quot;: 1618996280731,
+        &quot;creator&quot;: &quot;&quot;,
+        &quot;modifier&quot;: &quot;&quot;,
+        &quot;brandId&quot;: &quot;150&quot;,
+        &quot;companyName&quot;: &quot;aaaa4&quot;,
+        &quot;companyCode&quot;: &quot;123456&quot;,
+        &quot;companyLicense&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/79363803-5c8b-4d3a-8cd0-91213dabcf84_1.jpg&quot;,
+        &quot;companyLegalName&quot;: &quot;aaaa&quot;,
+        &quot;companyIdCard&quot;: &quot;53010219200508011X&quot;,
+        &quot;companyIdPhotoFront&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/1b8f3969-37c3-4c1d-b2b6-82be105590c7_1.jpg&quot;,
+        &quot;companyIdPhotoBack&quot;: &quot;&quot;,
+        &quot;status&quot;: 1,
+        &quot;brandRegCertificate&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/4479d561-601c-45f4-bf43-e75d5385472f_1.jpg&quot;,
+        &quot;commissionRate&quot;: 0.0,
+        &quot;brandName&quot;: &quot;test1&quot;,
+        &quot;brandLogo&quot;: &quot;&quot;,
+        &quot;manager&quot;: null,
+        &quot;phone&quot;: null,
+        &quot;brandPicUrl&quot;: null,
+        &quot;brandDetail&quot;: null,
+        &quot;username&quot;: &quot;test6&quot;,
+        &quot;shopNum&quot;: 1,
+        &quot;userId&quot;: &quot;1iy&quot;,
+        &quot;deleted&quot;: null
+      },
+      {
+        &quot;id&quot;: 61,
+        &quot;gmtModified&quot;: 1618971807517,
+        &quot;gmtCreated&quot;: 1618971807517,
+        &quot;creator&quot;: &quot;&quot;,
+        &quot;modifier&quot;: &quot;&quot;,
+        &quot;brandId&quot;: &quot;14y&quot;,
+        &quot;companyName&quot;: &quot;aaaa4&quot;,
+        &quot;companyCode&quot;: &quot;123456&quot;,
+        &quot;companyLicense&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/af317fca-922e-4592-a357-2c8ddd953688_1.jpg&quot;,
+        &quot;companyLegalName&quot;: &quot;aaaa&quot;,
+        &quot;companyIdCard&quot;: &quot;53010219200508011X&quot;,
+        &quot;companyIdPhotoFront&quot;: &quot;&quot;,
+        &quot;companyIdPhotoBack&quot;: &quot;&quot;,
+        &quot;status&quot;: 1,
+        &quot;brandRegCertificate&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/46bef5da-86dd-423e-9068-d09031f215f4_1.jpg&quot;,
+        &quot;commissionRate&quot;: 0.0,
+        &quot;brandName&quot;: &quot;test1&quot;,
+        &quot;brandLogo&quot;: &quot;&quot;,
+        &quot;manager&quot;: null,
+        &quot;phone&quot;: null,
+        &quot;brandPicUrl&quot;: null,
+        &quot;brandDetail&quot;: null,
+        &quot;username&quot;: &quot;test5&quot;,
+        &quot;shopNum&quot;: 0,
+        &quot;userId&quot;: &quot;1iw&quot;,
+        &quot;deleted&quot;: null
+      },
+      {
+        &quot;id&quot;: 60,
+        &quot;gmtModified&quot;: 1618970122374,
+        &quot;gmtCreated&quot;: 1618970122374,
+        &quot;creator&quot;: &quot;&quot;,
+        &quot;modifier&quot;: &quot;&quot;,
+        &quot;brandId&quot;: &quot;14w&quot;,
+        &quot;companyName&quot;: &quot;aaaa4&quot;,
+        &quot;companyCode&quot;: &quot;123456&quot;,
+        &quot;companyLicense&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/6f9c5fe9-2fef-4ddb-8469-aa4b4a3fc263_1.jpg&quot;,
+        &quot;companyLegalName&quot;: &quot;aaaa&quot;,
+        &quot;companyIdCard&quot;: &quot;53010219200508011X&quot;,
+        &quot;companyIdPhotoFront&quot;: &quot;&quot;,
+        &quot;companyIdPhotoBack&quot;: &quot;&quot;,
+        &quot;status&quot;: 1,
+        &quot;brandRegCertificate&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/f992f600-934d-44a3-9174-8da9c14727c8_1.jpg&quot;,
+        &quot;commissionRate&quot;: 0.0,
+        &quot;brandName&quot;: &quot;test1&quot;,
+        &quot;brandLogo&quot;: &quot;&quot;,
+        &quot;manager&quot;: null,
+        &quot;phone&quot;: null,
+        &quot;brandPicUrl&quot;: null,
+        &quot;brandDetail&quot;: null,
+        &quot;username&quot;: &quot;test4&quot;,
+        &quot;shopNum&quot;: 0,
+        &quot;userId&quot;: &quot;1iu&quot;,
+        &quot;deleted&quot;: null
+      },
+      {
+        &quot;id&quot;: 59,
+        &quot;gmtModified&quot;: 1618478011763,
+        &quot;gmtCreated&quot;: 1618478011763,
+        &quot;creator&quot;: &quot;&quot;,
+        &quot;modifier&quot;: &quot;&quot;,
+        &quot;brandId&quot;: &quot;14u&quot;,
+        &quot;companyName&quot;: &quot;aaaa2&quot;,
+        &quot;companyCode&quot;: &quot;123456&quot;,
+        &quot;companyLicense&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/778a9dff-8630-4a40-a39a-9d80a8501e72_1.jpg&quot;,
+        &quot;companyLegalName&quot;: &quot;aaaa&quot;,
+        &quot;companyIdCard&quot;: &quot;53010219200508011X&quot;,
+        &quot;companyIdPhotoFront&quot;: &quot;&quot;,
+        &quot;companyIdPhotoBack&quot;: &quot;&quot;,
+        &quot;status&quot;: 1,
+        &quot;brandRegCertificate&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/24e72277-7412-4650-9577-a3ec591e75e2_1.jpg&quot;,
+        &quot;commissionRate&quot;: 0.0,
+        &quot;brandName&quot;: &quot;test1&quot;,
+        &quot;brandLogo&quot;: &quot;&quot;,
+        &quot;manager&quot;: null,
+        &quot;phone&quot;: null,
+        &quot;brandPicUrl&quot;: null,
+        &quot;brandDetail&quot;: null,
+        &quot;username&quot;: &quot;test3&quot;,
+        &quot;shopNum&quot;: 0,
+        &quot;userId&quot;: &quot;1is&quot;,
+        &quot;deleted&quot;: null
+      },
+      {
+        &quot;id&quot;: 58,
+        &quot;gmtModified&quot;: 1618477821766,
+        &quot;gmtCreated&quot;: 1618477821766,
+        &quot;creator&quot;: &quot;&quot;,
+        &quot;modifier&quot;: &quot;&quot;,
+        &quot;brandId&quot;: &quot;14s&quot;,
+        &quot;companyName&quot;: &quot;aaaa1&quot;,
+        &quot;companyCode&quot;: &quot;123456&quot;,
+        &quot;companyLicense&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/88966896-13f5-4b6f-bacb-905351c6e8f9_1.jpg&quot;,
+        &quot;companyLegalName&quot;: &quot;aaaa&quot;,
+        &quot;companyIdCard&quot;: &quot;53010219200508011X&quot;,
+        &quot;companyIdPhotoFront&quot;: &quot;&quot;,
+        &quot;companyIdPhotoBack&quot;: &quot;&quot;,
+        &quot;status&quot;: 1,
+        &quot;brandRegCertificate&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/ba600c8d-ee3c-4d5e-a30c-8d05652afdf7_1.jpg&quot;,
+        &quot;commissionRate&quot;: 0.0,
+        &quot;brandName&quot;: &quot;test1&quot;,
+        &quot;brandLogo&quot;: &quot;&quot;,
+        &quot;manager&quot;: null,
+        &quot;phone&quot;: null,
+        &quot;brandPicUrl&quot;: null,
+        &quot;brandDetail&quot;: null,
+        &quot;username&quot;: &quot;test2&quot;,
+        &quot;shopNum&quot;: 0,
+        &quot;userId&quot;: &quot;1iq&quot;,
+        &quot;deleted&quot;: null
+      },
+      {
+        &quot;id&quot;: 57,
+        &quot;gmtModified&quot;: 1618476238468,
+        &quot;gmtCreated&quot;: 1618476238468,
+        &quot;creator&quot;: &quot;&quot;,
+        &quot;modifier&quot;: &quot;&quot;,
+        &quot;brandId&quot;: &quot;14q&quot;,
+        &quot;companyName&quot;: &quot;aaaaa&quot;,
+        &quot;companyCode&quot;: &quot;123456&quot;,
+        &quot;companyLicense&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/27dcdb80-b869-48a1-a935-d4d0259e0915_1.jpg&quot;,
+        &quot;companyLegalName&quot;: &quot;aaaa&quot;,
+        &quot;companyIdCard&quot;: &quot;53010219200508011X&quot;,
+        &quot;companyIdPhotoFront&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/c6493140-1985-4986-acc1-2f29a12c79f6_1.jpg&quot;,
+        &quot;companyIdPhotoBack&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/3b91ae81-c3cb-4081-b5ba-4301ffd7d757_1.jpg&quot;,
+        &quot;status&quot;: 1,
+        &quot;brandRegCertificate&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/766045ff-6bea-44b1-95b4-903a3599a64e_1.jpg&quot;,
+        &quot;commissionRate&quot;: 0.0,
+        &quot;brandName&quot;: &quot;test1&quot;,
+        &quot;brandLogo&quot;: &quot;&quot;,
+        &quot;manager&quot;: null,
+        &quot;phone&quot;: null,
+        &quot;brandPicUrl&quot;: null,
+        &quot;brandDetail&quot;: null,
+        &quot;username&quot;: &quot;test1&quot;,
+        &quot;shopNum&quot;: 0,
+        &quot;userId&quot;: &quot;1io&quot;,
+        &quot;deleted&quot;: null
+      },
+      {
+        &quot;id&quot;: 56,
+        &quot;gmtModified&quot;: 1618294796117,
+        &quot;gmtCreated&quot;: 1618293726380,
+        &quot;creator&quot;: &quot;&quot;,
+        &quot;modifier&quot;: &quot;&quot;,
+        &quot;brandId&quot;: &quot;14o&quot;,
+        &quot;companyName&quot;: &quot;ev g&quot;,
+        &quot;companyCode&quot;: &quot;111&quot;,
+        &quot;companyLicense&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/89a4d29b-b931-4bbf-8902-fe74ade0d93f_%E5%BE%AE%E4%BF%A1%E5%9B%BE%E7%89%87_20210316133846.jpg&quot;,
+        &quot;companyLegalName&quot;: &quot;frff&quot;,
+        &quot;companyIdCard&quot;: &quot;FFFFFF&quot;,
+        &quot;companyIdPhotoFront&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/7e37582e-fe3f-4933-a57a-f73a5a8b54b4_%E5%BE%AE%E4%BF%A1%E5%9B%BE%E7%89%87_20210316133846.jpg&quot;,
+        &quot;companyIdPhotoBack&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/604ce689-688d-4027-8aef-32b0de83d32e_%E5%BE%AE%E4%BF%A1%E5%9B%BE%E7%89%87_20210316133846.jpg&quot;,
+        &quot;status&quot;: 1,
+        &quot;brandRegCertificate&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/c8053b6b-450e-4a72-b740-3e971f0da3f3_%E5%BE%AE%E4%BF%A1%E5%9B%BE%E7%89%87_20210316133846.jpg&quot;,
+        &quot;commissionRate&quot;: 0.0,
+        &quot;brandName&quot;: &quot;清泉连锁&quot;,
+        &quot;brandLogo&quot;: &quot;&quot;,
+        &quot;manager&quot;: null,
+        &quot;phone&quot;: null,
+        &quot;brandPicUrl&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/c1351578-33d3-4eed-874b-20fd97bc5c8c_%E5%BE%AE%E4%BF%A1%E5%9B%BE%E7%89%87_20210407175058.png?x-oss-process=image/resize,w_100,limit_0&quot;,
+        &quot;brandDetail&quot;: &quot;浙江清泉连锁有限公司于2020年04月01日成立。法定代表人邸杰，公司经营范围包括：销售食品；技术开发、技术服务；货物进出口、代理进出口；销售食用农产品等。&quot;,
+        &quot;username&quot;: &quot;778899&quot;,
+        &quot;shopNum&quot;: 2,
+        &quot;userId&quot;: &quot;1ig&quot;,
+        &quot;deleted&quot;: null
+      },
+      {
+        &quot;id&quot;: 55,
+        &quot;gmtModified&quot;: 1618281723722,
+        &quot;gmtCreated&quot;: 1618281723722,
+        &quot;creator&quot;: &quot;&quot;,
+        &quot;modifier&quot;: &quot;&quot;,
+        &quot;brandId&quot;: &quot;14m&quot;,
+        &quot;companyName&quot;: &quot;米罗&quot;,
+        &quot;companyCode&quot;: &quot;IIRIRFIRF9IRF930IR&quot;,
+        &quot;companyLicense&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/d842ab85-995c-4b72-ab8d-6e072fb3d065_touming.png&quot;,
+        &quot;companyLegalName&quot;: &quot;jfevgj&quot;,
+        &quot;companyIdCard&quot;: &quot;150430199812221321&quot;,
+        &quot;companyIdPhotoFront&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/0a5a3dc1-5465-4338-9d75-24a0663b512b_touming.png&quot;,
+        &quot;companyIdPhotoBack&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/5f36466d-08e6-489b-b188-37c9e7d33f3c_touming.png&quot;,
+        &quot;status&quot;: 1,
+        &quot;brandRegCertificate&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/0dba13f4-1279-4cb3-90dc-205d074572d3_touming.png&quot;,
+        &quot;commissionRate&quot;: 0.0,
+        &quot;brandName&quot;: &quot;清泉出山&quot;,
+        &quot;brandLogo&quot;: &quot;&quot;,
+        &quot;manager&quot;: null,
+        &quot;phone&quot;: null,
+        &quot;brandPicUrl&quot;: null,
+        &quot;brandDetail&quot;: null,
+        &quot;username&quot;: &quot;112233445566&quot;,
+        &quot;shopNum&quot;: 0,
+        &quot;userId&quot;: &quot;1ie&quot;,
+        &quot;deleted&quot;: null
+      },
+      {
+        &quot;id&quot;: 54,
+        &quot;gmtModified&quot;: 1618192499864,
+        &quot;gmtCreated&quot;: 1618192499864,
+        &quot;creator&quot;: &quot;&quot;,
+        &quot;modifier&quot;: &quot;&quot;,
+        &quot;brandId&quot;: &quot;14k&quot;,
+        &quot;companyName&quot;: &quot;cjbqa001品牌商&quot;,
+        &quot;companyCode&quot;: &quot;CJBQA001&quot;,
+        &quot;companyLicense&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/e95064ec-d3d1-4c6c-8fa9-fab13c5035fa_2018135.jpg&quot;,
+        &quot;companyLegalName&quot;: &quot;cjbqa&quot;,
+        &quot;companyIdCard&quot;: &quot;CJBQA000000001&quot;,
+        &quot;companyIdPhotoFront&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/20f143ad-42bf-4dc8-b8b6-f6bcd9996f0e_322461.jpg&quot;,
+        &quot;companyIdPhotoBack&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/f739cfba-7800-4d2d-a313-b15bcc3538ff_2008527.jpg&quot;,
+        &quot;status&quot;: 1,
+        &quot;brandRegCertificate&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/afb228c1-055a-44ce-8542-fec29b9d3302_Kubernetes.png&quot;,
+        &quot;commissionRate&quot;: 0.0,
+        &quot;brandName&quot;: &quot;cjbqa品牌商-VIP&quot;,
+        &quot;brandLogo&quot;: &quot;&quot;,
+        &quot;manager&quot;: null,
+        &quot;phone&quot;: null,
+        &quot;brandPicUrl&quot;: null,
+        &quot;brandDetail&quot;: null,
+        &quot;username&quot;: &quot;cjbqa001&quot;,
+        &quot;shopNum&quot;: 1,
+        &quot;userId&quot;: &quot;1ia&quot;,
+        &quot;deleted&quot;: null
+      },
+      {
+        &quot;id&quot;: 53,
+        &quot;gmtModified&quot;: 1617852256709,
+        &quot;gmtCreated&quot;: 1617852256709,
+        &quot;creator&quot;: &quot;&quot;,
+        &quot;modifier&quot;: &quot;&quot;,
+        &quot;brandId&quot;: &quot;14i&quot;,
+        &quot;companyName&quot;: &quot;我&quot;,
+        &quot;companyCode&quot;: &quot;1111111111&quot;,
+        &quot;companyLicense&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/b2c9c004-f06d-4b78-973d-5d972b353974_2020-10-20_175547.png&quot;,
+        &quot;companyLegalName&quot;: &quot;朱琳&quot;,
+        &quot;companyIdCard&quot;: &quot;222222222222222222&quot;,
+        &quot;companyIdPhotoFront&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/8464eae5-b18c-4dee-a078-5f6d55c73ab6_2020-10-20_175547.png&quot;,
+        &quot;companyIdPhotoBack&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/89ced355-208d-4f14-8614-5a25ccdf4c97_2020-10-20_175547.png&quot;,
+        &quot;status&quot;: 1,
+        &quot;brandRegCertificate&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/38969b2d-62c3-4130-be10-dfa2bdc64e05_2020-10-20_175547.png&quot;,
+        &quot;commissionRate&quot;: 0.0,
+        &quot;brandName&quot;: &quot;顶顶顶顶顶&quot;,
+        &quot;brandLogo&quot;: &quot;&quot;,
+        &quot;manager&quot;: null,
+        &quot;phone&quot;: null,
+        &quot;brandPicUrl&quot;: null,
+        &quot;brandDetail&quot;: null,
+        &quot;username&quot;: &quot;zhulin03&quot;,
+        &quot;shopNum&quot;: 3,
+        &quot;userId&quot;: &quot;1hi&quot;,
+        &quot;deleted&quot;: null
+      },
+      {
+        &quot;id&quot;: 52,
+        &quot;gmtModified&quot;: 1621389575489,
+        &quot;gmtCreated&quot;: 1617777625481,
+        &quot;creator&quot;: &quot;&quot;,
+        &quot;modifier&quot;: &quot;&quot;,
+        &quot;brandId&quot;: &quot;14g&quot;,
+        &quot;companyName&quot;: &quot;无人生还&quot;,
+        &quot;companyCode&quot;: &quot;333333333333&quot;,
+        &quot;companyLicense&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/9859695e-53dd-4299-ae55-59626c18b676_%E6%88%AA%E5%B1%8F2021-02-10%20%E4%B8%8B%E5%8D%888.17.54.png&quot;,
+        &quot;companyLegalName&quot;: &quot;七七&quot;,
+        &quot;companyIdCard&quot;: &quot;777777777777777777&quot;,
+        &quot;companyIdPhotoFront&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/00873d6b-2f68-4457-a968-9858709c5adf_Screenshot_2021-04-06-17-54-53-29_e7b888fccdf5177.jpg&quot;,
+        &quot;companyIdPhotoBack&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/30e95ca3-c91e-4f83-b1f7-6317e806b167_Screenshot_2021-04-06-17-54-53-29_e7b888fccdf5177.jpg&quot;,
+        &quot;status&quot;: 1,
+        &quot;brandRegCertificate&quot;: &quot;https://vipshop-test.oss-cn-shanghai.aliyuncs.com/f1b83297-5d7a-412e-a468-a059c02982e5_Screenshot_2021-04-06-17-37-51-79_e7b888fccdf5177.jpg&quot;,
+        &quot;commissionRate&quot;: 10.0,
+        &quot;brandName&quot;: &quot;无人生还007&quot;,
+        &quot;brandLogo&quot;: &quot;&quot;,
+        &quot;manager&quot;: null,
+        &quot;phone&quot;: null,
+        &quot;brandPicUrl&quot;: null,
+        &quot;brandDetail&quot;: null,
+        &quot;username&quot;: &quot;AAAAA&quot;,
+        &quot;shopNum&quot;: 4,
+        &quot;userId&quot;: &quot;1h4&quot;,
+        &quot;deleted&quot;: null
+      }
+    ],
+    &quot;page&quot;: 0,
+    &quot;pageCount&quot;: 0,
+    &quot;pageSize&quot;: 0,
+    &quot;total&quot;: 64
+  },
+  &quot;traceId&quot;: null
+}<br/></div></td></tr></tbody></table></body></html>

@@ -1,0 +1,8 @@
+login_super:
+  user_name: 'superAdmin'
+  password: '123456a'
+  p: '1'
+
+page:
+  offset: 0
+  pageSize: 15
